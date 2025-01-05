@@ -16,6 +16,13 @@ class SecurityCamera:
             os.makedirs('snapshots')
         if not os.path.exists('recordings'):
             os.makedirs('recordings')
+        if not os.path.exists('faces'):
+            os.makedirs('faces')
+        
+        # loading all the known faces and names from faces dir
+        self.known_faces = []
+        self.known_names = []
+        self.load_known_faces()
 
         #Video Capturing
         self.cap = cv2.VideoCapture(0)
@@ -23,6 +30,7 @@ class SecurityCamera:
         self.video_writer = None
         self.last_mean = 0
 
+        # UI ELEMENTS
         #label to display the video feedpip
         self.video_label = tk.Label(root)
         self.video_label.pack()
@@ -32,6 +40,9 @@ class SecurityCamera:
 
         self.recording_label = tk.Label(root,text="")
         self.recording_label.pack()
+
+        self.face_detection_label = tk.Label(root,text="")
+        self.face_detection_label.pack()
 
         self.btn_recording = tk.Button(root, text="Start Recording", command=self.start_recording)
         self.btn_recording.pack(pady=10)
@@ -51,19 +62,33 @@ class SecurityCamera:
         capture_Boolean, frame = self.cap.read()
         if capture_Boolean:
             # converting frame to RGB
-            frame = cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)
-            img = Image.fromarray(frame)
+            rgb_frame = cv2.cvtColor(frame,cv2.COLOR_BGR2RGB)
+            img = Image.fromarray(rgb_frame)
             imgtk = ImageTk.PhotoImage(image=img)
 
-            #update the video label which is initaited before 
+            #update the video label which is initaited before   
             self.video_label.imgtk = imgtk
             self.video_label.configure(image=imgtk)
+
+            
+            #Face detection
+            gray_image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+            faces = self.face_cascade.detectMultiScale(gray_image, 1.1, 5, minSize=(40,40))
+            if len(faces) > 0:
+                self.face_detection_label.config(text="Face Detected")
+                for (x,y,w,h) in faces:
+                    cv2.rectangle(frame, (x,y), (x+w, y+h), (0,255,0), 4)
+            else:
+                self.face_detection_label.config(text="")
+
 
         #if video recording is on then frames is passed on
         if self.is_recording and self.video_writer is not None:
             self.video_writer.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
             self.recording_label.config(text="Recording Video....",fg="blue")
-
+        
+        
         # Motion Detection
         #converting frame to grayscale as RGB is computation-intensive
         gray_frame = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)  
@@ -71,7 +96,6 @@ class SecurityCamera:
         self.last_mean = np.mean(gray_frame)
         #threshold value set to 0.2 based on assesment but 0.3 is also okay
         if motion_value > 0.2:
-            print("Motion Detected")
             self.motion_label.config(text="Motion Detected",fg="red")
         else:
             self.motion_label.config(text="No Motion Detected",fg="green")
@@ -109,9 +133,6 @@ class SecurityCamera:
                 self.video_writer.release()
                 self.video_writer = None
                 self.recording_label.config(text="")
-
-
-
 
 if __name__== "__main__":
     root=tk.Tk()
