@@ -5,11 +5,13 @@ from tkinter import Button, Label
 from PIL import Image, ImageTk
 import os
 import numpy as np
+from transformers import BlipProcessor, BlipForConditionalGeneration
 
 class SecurityCamera:
     def __init__(self, root):
         self.root = root
         self.root.title("Security Camera")
+
 
         # creation of recording and snapshots directory if not found
         if not os.path.exists('snapshots'):
@@ -22,13 +24,23 @@ class SecurityCamera:
         # loading all the known faces and names from faces dir
         self.known_faces = []
         self.known_names = []
-        self.load_known_faces()
+        # self.load_known_faces()
 
         #Video Capturing
         self.cap = cv2.VideoCapture(0)
         self.is_recording = False
         self.video_writer = None
         self.last_mean = 0
+
+        #Below 2 values will take in three motion values to save in a list
+        #       so that the mean of the values will give a number
+        #       done so that the motion detection label doesnt change indefinetly again and again
+        self.motion_values_list = [] # to save the motion values 
+        self.MOTION_AVERAGE_FRAMES = 5 # average frames to detect the motion
+
+        # Loading processers and models
+        self.blip_preprocessor = BlipProcessor.from_pretrained('Salesforce/blip-image-captioning-base')
+        self.blip_model = BlipForConditionalGeneration.from_pretrained('Salesforce/blip-image-captioning-base')
 
         # UI ELEMENTS
         #label to display the video feedpip
@@ -43,6 +55,9 @@ class SecurityCamera:
 
         self.face_detection_label = tk.Label(root,text="")
         self.face_detection_label.pack()
+
+        self.frame_description_label = tk.Label(root,text="")
+        self.frame_description_label.pack()
 
         self.btn_recording = tk.Button(root, text="Start Recording", command=self.start_recording)
         self.btn_recording.pack(pady=10)
@@ -69,7 +84,11 @@ class SecurityCamera:
             #update the video label which is initaited before   
             self.video_label.imgtk = imgtk
             self.video_label.configure(image=imgtk)
-
+            
+            # description of the video frame
+            description = self.describe_frame(rgb_frame)
+            print(f'Frame Description:{description}')
+            self.frame_description_label.configure(text=description,fg='violet')
             
             #Face detection
             gray_image = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -94,8 +113,13 @@ class SecurityCamera:
         gray_frame = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)  
         motion_value = np.abs(np.mean(gray_frame) - self.last_mean)
         self.last_mean = np.mean(gray_frame)
+
+        self.motion_values_list.append(motion_value)
+        if len(self.motion_values_list) > self.MOTION_AVERAGE_FRAMES:
+            self.motion_values_list.pop(0)
+        avg_motion_value = sum(self.motion_values_list) / self.MOTION_AVERAGE_FRAMES
         #threshold value set to 0.2 based on assesment but 0.3 is also okay
-        if motion_value > 0.2:
+        if avg_motion_value > 0.2:
             self.motion_label.config(text="Motion Detected",fg="red")
         else:
             self.motion_label.config(text="No Motion Detected",fg="green")
@@ -104,6 +128,17 @@ class SecurityCamera:
 
         # refresh and repeating - 100ms
         self.root.after(100, self.update_video_feed)
+
+    # for describing each frames in the video
+    def describe_frame(self,rgb_frame):
+
+        image = Image.fromarray(rgb_frame)
+
+        inputs = self.blip_preprocessor(images=image,return_tensors='pt')
+        outputs = self.blip_model.generate(**inputs)
+        description = self.blip_preprocessor.decode(outputs[0],skip_special_tokens=True)
+
+        return description
 
     def take_snapshot(self):
         img_Boolean, frame = self.cap.read()
