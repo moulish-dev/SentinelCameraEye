@@ -2,3 +2,6 @@
 snapshots
 recordings
 faces
+*.pyc
+.vscode
+__pycache__
