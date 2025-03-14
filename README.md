@@ -83,6 +83,10 @@ See the [LICENSE](LICENSE) file for details.
 
 ---
 
+## Roadmap
+View the project [ROADMAP](ROADMAP) here.
+---
+
 ## 🙌 Acknowledgments
 - **[OpenCV](https://opencv.org/)** for computer vision functionalities.
 - **[YOLO (Ultralytics)](https://github.com/ultralytics/ultralytics)** for real-time object detection.
